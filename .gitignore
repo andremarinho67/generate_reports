@@ -2,3 +2,6 @@
 output.pdf
 output.docx
 venv/
+.replit
+pyproject.toml
+uv.lock
