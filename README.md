@@ -3,7 +3,7 @@ Report Generation Script
 
 Description:
 ------------
-This script parses a .docx file containing structured entries and generates a PDF report with formatted tables for each entry. Each entry includes fields like Title, Date, Country (with flag), Summary, Link, and Availability.
+This script parses a .docx file containing structured entries and generates a report with formatted tables for each entry. Each entry includes fields like Title, Date, Country (with flag), Summary, Link, and Availability.
 
 Requirements:
 --------------
@@ -34,12 +34,21 @@ Note:
 Usage:
 -------
 - Place your input .docx file as input.docx in the working directory or adjust the script accordingly.
-- Run the script to generate output.pdf with formatted entries.
+- Run the script to generate output.pdf with formatted entries by default.
+- To generate a Word (.docx) report instead, use the -w flag.
 
 Flags:
 -------
 - Flag images for countries should be placed in the flags/ directory as PNG files.
-- The script automatically loads and displays them in the PDF.
+- The script automatically loads and displays them in the PDF or Word report.
+
+Command examples:
+-----------------
+Generate PDF (default):
+   python generate_reports.py
+
+Generate Word document:
+   python generate_reports.py -w
 
 Troubleshooting:
 ----------------
