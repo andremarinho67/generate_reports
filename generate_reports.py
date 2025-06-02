@@ -1,12 +1,17 @@
 from docx import Document as DocxDocument
+from docx.shared import Pt, Inches
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls
+from docx.enum.table import WD_ALIGN_VERTICAL
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT, WD_BREAK
 from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image, Paragraph, Spacer, PageBreak
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import PageBreak
 import os
 import re
+import argparse
 
 # Map country to flag image filenames (ensure these files exist)
 country_flags = {
@@ -179,30 +184,168 @@ def build_table_for_entry(entry):
     return t
 
 
+def set_cell_background(cell, color_hex):
+    if color_hex is None:
+        return
+    shading_elm = parse_xml(
+        r'<w:shd {} w:fill="{}"/>'.format(nsdecls('w'), color_hex)
+    )
+    tc_pr = cell._tc.get_or_add_tcPr()
+    # Remove existing shading if any
+    for child in tc_pr.findall('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}shd'):
+        tc_pr.remove(child)
+    tc_pr.append(shading_elm)
+
+
+def create_word(entries, output_docx):
+    print("[create_word] Creating Word document:", output_docx)
+    doc = DocxDocument()
+
+    for i, entry in enumerate(entries, 1):
+        print(f"[create_word] Processing entry #{i}")
+
+        table = doc.add_table(rows=4, cols=6)
+        table.autofit = False
+        widths = [Inches(1), Inches(2.5), Inches(0.8), Inches(1), Inches(0.8), Inches(1)]
+        for idx, width in enumerate(widths):
+            for cell in table.columns[idx].cells:
+                cell.width = width
+
+        # Prepare Title split
+        title = entry["Title"]
+        if len(title) > 40:
+            parts = title.split(' ')
+            mid = len(parts)//2
+            title_text = ' '.join(parts[:mid]) + '\n' + ' '.join(parts[mid:])
+        else:
+            title_text = title
+
+        # Row 1
+        cells = [
+            (table.cell(0,0), "Title"),
+            (table.cell(0,1), title_text),
+            (table.cell(0,2), "Date"),
+            (table.cell(0,3), entry["Date"]),
+            (table.cell(0,4), "Country"),
+            (table.cell(0,5), None),  # Flag or country text filled later
+        ]
+
+        # Fill text and set vertical align center for all cells in first row
+        for cell, text in cells:
+            if text is not None:
+                cell.text = text
+            set_cell_background(cell, "ADD8E6" if text in ["Title", "Date", "Country"] else None)
+            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+        # Make labels bold (in label cells)
+        for idx in [0,2,4]:
+            cell = table.cell(0, idx)
+            cell.paragraphs[0].runs[0].font.bold = True
+
+        # Add flag or country text centered in last cell
+        country_cell_value = table.cell(0,5)
+        flag_path = country_flags.get(entry["Country"])
+        if flag_path and os.path.isfile(flag_path):
+            paragraph = country_cell_value.paragraphs[0]
+            paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            run = paragraph.add_run()
+            run.add_picture(flag_path, width=Inches(0.5))
+            country_cell_value.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        else:
+            country_cell_value.text = entry["Country"]
+            country_cell_value.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+        # Row 2 Summary
+        summary_label_cell = table.cell(1,0)
+        summary_label_cell.text = "Summary"
+        set_cell_background(summary_label_cell, "ADD8E6")
+        summary_label_cell.paragraphs[0].runs[0].font.bold = True
+        summary_label_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+        summary_value_cell = table.cell(1,1)
+        summary_value_cell.text = entry["Summary"]
+        summary_value_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        for col in range(2,6):
+            summary_value_cell.merge(table.cell(1,col))
+
+        # Row 3 Link
+        link_label_cell = table.cell(2,0)
+        link_label_cell.text = "Link"
+        set_cell_background(link_label_cell, "ADD8E6")
+        link_label_cell.paragraphs[0].runs[0].font.bold = True
+        link_label_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+        link_value_cell = table.cell(2,1)
+        link_value_cell.text = entry["Link"]
+        link_value_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        for col in range(2,6):
+            link_value_cell.merge(table.cell(2,col))
+
+        # Row 4 Availability
+        avail_label_cell = table.cell(3,0)
+        avail_label_cell.text = "Availability"
+        set_cell_background(avail_label_cell, "ADD8E6")
+        avail_label_cell.paragraphs[0].runs[0].font.bold = True
+        avail_label_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+        avail_value_cell = table.cell(3,1)
+        avail_value_cell.text = entry["Availability"]
+        avail_value_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        for col in range(2,6):
+            avail_value_cell.merge(table.cell(3,col))
+
+        # Add page break after each table except last
+        if i != len(entries):
+            p = doc.add_paragraph()
+            run = p.add_run()
+            run.add_break(WD_BREAK.PAGE)
+
+    doc.save(output_docx)
+    print("[create_word] Document saved successfully.")
+
+
 def create_pdf(entries, output_pdf):
-    print("[create_pdf] Creating PDF:", output_pdf)
-    doc = SimpleDocTemplate(output_pdf, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+    print("[create_pdf] Creating PDF document:", output_pdf)
+    doc = SimpleDocTemplate(output_pdf, pagesize=A4,
+                            rightMargin=36,leftMargin=36,
+                            topMargin=36,bottomMargin=36)
+
     elements = []
 
     for i, entry in enumerate(entries, 1):
-        print(f"[create_pdf] Processing entry #{i}")
-        table = build_table_for_entry(entry)
-        elements.append(table)
-
-        # Add page break after each table except the last one
-        if i < len(entries):
+        elements.append(build_table_for_entry(entry))
+        if i != len(entries):
+            elements.append(Spacer(1, 0.2*inch))
             elements.append(PageBreak())
 
     doc.build(elements)
-    print("[create_pdf] PDF creation done.")
+    print("[create_pdf] PDF saved successfully.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Generate report from Word to PDF or Word.')
+    parser.add_argument('input_docx', help='Input DOCX file with entries')
+    parser.add_argument('-o', '--output', default='output.pdf', help='Output filename (default: output.pdf)')
+    parser.add_argument('-w', '--word', action='store_true', help='Create a Word document instead of PDF')
+    args = parser.parse_args()
+
+    entries = parse_docx(args.input_docx)
+
+    if args.word:
+        # Force output to .docx extension if not provided
+        if not args.output.lower().endswith('.docx'):
+            output_docx = os.path.splitext(args.output)[0] + '.docx'
+        else:
+            output_docx = args.output
+        create_word(entries, output_docx)
+    else:
+        # Force output to .pdf extension if not provided
+        if not args.output.lower().endswith('.pdf'):
+            output_pdf = os.path.splitext(args.output)[0] + '.pdf'
+        else:
+            output_pdf = args.output
+        create_pdf(entries, output_pdf)
+
 
 if __name__ == "__main__":
-    input_docx = "input.docx"
-    output_pdf = "output.pdf"
-
-    print("[main] Starting script...")
-    entries = parse_docx(input_docx)
-    print(f"[main] Parsed {len(entries)} entries from document.")
-
-    create_pdf(entries, output_pdf)
-    print(f"[main] PDF generated: {output_pdf}")
+    main()
