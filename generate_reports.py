@@ -2,7 +2,7 @@ from docx import Document as DocxDocument
 from docx.shared import Pt, Inches
 from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls
-from docx.enum.table import WD_ALIGN_VERTICAL
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_ROW_HEIGHT_RULE
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT, WD_BREAK
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image, Paragraph, Spacer, PageBreak
@@ -15,7 +15,8 @@ import re
 import argparse
 
 # Custom One Consulting blue color
-custom_blue = colors.Color(87 / 255, 155 / 255, 156 / 255, 1)  # RGBA
+one_consult_blue = colors.Color(87 / 255, 155 / 255, 156 / 255, 1)  # RGBA
+transparent_blue = colors.Color(87 / 255, 155 / 255, 156 / 255, 0.2)  # RGBA
 
 # Map country to flag image filenames (ensure these files exist)
 country_flags = {
@@ -35,7 +36,7 @@ normal_style.leading = 12
 label_style = ParagraphStyle(
     'LabelStyle',
     parent=normal_style,
-    backColor=custom_blue,
+    backColor=one_consult_blue,
     fontName='Helvetica-Bold',
     fontSize=10,
     alignment=1,  # center align
@@ -196,10 +197,22 @@ def build_table_for_entry(entry):
               ],
               rowHeights=row_heights)
     style = TableStyle([
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-        ('BACKGROUND', (0, 0), (0, 0), custom_blue),
-        ('BACKGROUND', (2, 0), (2, 0), custom_blue),
-        ('BACKGROUND', (4, 0), (4, 0), custom_blue),
+        ('BOX', (0, 0), (-1, -1), 0, colors.white),
+        ('INNERGRID', (0, 0), (-1, -1), 0, colors.white),
+        # Label backgrounds (solid)
+        ('BACKGROUND', (0, 0), (0, 0), one_consult_blue),
+        ('BACKGROUND', (2, 0), (2, 0), one_consult_blue),
+        ('BACKGROUND', (4, 0), (4, 0), one_consult_blue),
+        ('BACKGROUND', (0, 1), (0, 1), one_consult_blue),
+        ('BACKGROUND', (0, 2), (0, 2), one_consult_blue),
+        ('BACKGROUND', (0, 3), (0, 3), one_consult_blue),
+        # Content backgrounds (transparent)
+        ('BACKGROUND', (1, 0), (1, 0), transparent_blue),
+        ('BACKGROUND', (3, 0), (3, 0), transparent_blue),
+        ('BACKGROUND', (5, 0), (5, 0), transparent_blue),
+        ('BACKGROUND', (1, 1), (-1, 1), transparent_blue),
+        ('BACKGROUND', (1, 2), (-1, 2), transparent_blue),
+        ('BACKGROUND', (1, 3), (-1, 3), transparent_blue),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('ALIGN', (1, 0), (1, 0), 'LEFT'),
@@ -208,9 +221,6 @@ def build_table_for_entry(entry):
         ('SPAN', (1, 1), (-1, 1)),
         ('SPAN', (1, 2), (-1, 2)),
         ('SPAN', (1, 3), (-1, 3)),
-        ('BACKGROUND', (0, 1), (0, 1), custom_blue),
-        ('BACKGROUND', (0, 2), (0, 2), custom_blue),
-        ('BACKGROUND', (0, 3), (0, 3), custom_blue),
     ])
     t.setStyle(style)
 
@@ -290,10 +300,17 @@ def create_word(entries, output_docx):
         country_cell_value = table.cell(0, 5)
         flag_path = country_flags.get(entry["Country"])
         if flag_path and os.path.isfile(flag_path):
+            # Remove all paragraphs except the first
+            while len(country_cell_value.paragraphs) > 1:
+                p = country_cell_value.paragraphs[-1]
+                p._element.getparent().remove(p._element)
+            # Clear any existing text
+            country_cell_value.text = ""
             paragraph = country_cell_value.paragraphs[0]
             paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
             run = paragraph.add_run()
             run.add_picture(flag_path, width=Inches(0.5))
+            # Set vertical alignment after adding the image
             country_cell_value.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         else:
             country_cell_value.text = entry["Country"]
@@ -337,6 +354,10 @@ def create_word(entries, output_docx):
         avail_value_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         for col in range(2, 6):
             avail_value_cell.merge(table.cell(3, col))
+
+        # Set fixed height for the first row
+        table.rows[0].height = Inches(0.6)
+        table.rows[0].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
 
         # Add page break after each table except last
         if i != len(entries):
