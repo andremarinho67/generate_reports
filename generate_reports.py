@@ -10,6 +10,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
+from reportlab.platypus import ListFlowable, ListItem, KeepTogether, Flowable
 import os
 import re
 import argparse
@@ -65,15 +66,18 @@ def parse_docx(file_path):
     )
 
     entries = []
+    # Regex pattern: Key Aspects is a single string (may be empty)
+    pattern = (
+        r'Title:\s*(.*?)\s+Date:\s*(.*?)\s+Country:\s*(.*?)\s+Summary:\s*(.*?)'
+        r'(?:\s+Key Aspects:\s*((?:- .*\s*)*))?'
+        r'Link:\s*(.*?)\s+Availability:\s*(.*)')
+
     for idx, entry_text in enumerate(raw_entries):
         entry_text = entry_text.strip()
         if not entry_text:
             continue
         print(f"[parse_docx] Parsing entry #{idx+1}")
 
-        pattern = (
-            r'Title:\s*(.*?)\s+Date:\s*(.*?)\s+Country:\s*(.*?)\s+Summary:\s*(.*?)\s+Link:\s*(.*?)\s+Availability:\s*(.*)'
-        )
         match = re.match(pattern, entry_text, re.DOTALL)
         if not match:
             print(
@@ -81,22 +85,45 @@ def parse_docx(file_path):
             print(f"  Text: {entry_text[:100]}...")
             continue
 
+        key_aspects_raw = match.group(5)
+        if key_aspects_raw:
+            key_aspects = key_aspects_raw.strip()
+        else:
+            key_aspects = ""
+
         entry = {
             "Title": match.group(1).strip(),
             "Date": match.group(2).strip(),
             "Country": match.group(3).strip(),
             "Summary": match.group(4).strip(),
-            "Link": match.group(5).strip(),
-            "Availability": match.group(6).strip(),
+            "Key Aspects": key_aspects,
+            "Link": match.group(6).strip(),
+            "Availability": match.group(7).strip(),
         }
 
-        print(f"  Parsed fields:")
-        for k, v in entry.items():
-            print(f"    {k}: {v[:50]}{'...' if len(v)>50 else ''}")
+        print(
+            f"  Parsed Key Aspects for '{entry['Title']}': {entry['Key Aspects'][:50]}{'...' if len(entry['Key Aspects'])>50 else ''}"
+        )
+
         entries.append(entry)
 
     print(f"[parse_docx] Completed parsing entries. Total: {len(entries)}")
     return entries
+
+
+def tokenize_key_aspects(key_aspects_str):
+    """Split Key Aspects string into a list of bullet points, robust to both multi-line and single-line formats."""
+    if not key_aspects_str:
+        return []
+
+    # Normalize into a single string (in case it's multi-line)
+    combined = " ".join(line.strip() for line in key_aspects_str.splitlines())
+
+    # Split on ' - ' and clean each bullet
+    parts = [
+        part.strip(" -") for part in combined.split(" - ") if part.strip(" -")
+    ]
+    return parts
 
 
 def build_table_for_entry(entry):
@@ -157,6 +184,27 @@ def build_table_for_entry(entry):
         leading=16,
     )
 
+    # Compose summary with key aspects
+    summary_text = entry.get('Summary', '') or ''
+    summary_flowables = [Paragraph(summary_text, summary_style)]
+
+    key_aspects_list = tokenize_key_aspects(entry.get("Key Aspects", ""))
+    bullet_items = [
+        ListItem(Paragraph(point, value_style)) for point in key_aspects_list
+        if point
+    ]
+
+    if bullet_items:
+        summary_flowables.append(Spacer(1, 6))
+        summary_flowables.append(Paragraph('<b>Key Aspects:</b>', value_style))
+        summary_flowables.append(
+            ListFlowable(bullet_items, bulletType='bullet', leftIndent=12))
+
+    # Remove any None values
+    summary_flowables = [f for f in summary_flowables if f is not None]
+    summary_cell_content = summary_flowables if len(
+        summary_flowables) > 1 else summary_flowables[0]
+
     # Table data (6 columns)
     data = [
         [
@@ -168,8 +216,8 @@ def build_table_for_entry(entry):
             flag_img if flag_img else Paragraph(entry['Country'], value_style)
         ],
         [
-            Paragraph('<b>Summary</b>', label_style),
-            Paragraph(entry['Summary'], summary_style), '', '', '', ''
+            Paragraph('<b>Summary</b>', label_style), summary_cell_content, '',
+            '', '', ''
         ],
         [
             Paragraph('<b>Link</b>', label_style),
@@ -324,7 +372,24 @@ def create_word(entries, output_docx):
         summary_label_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
         summary_value_cell = table.cell(1, 1)
-        summary_value_cell.text = entry["Summary"]
+        # Clear any existing paragraphs
+        summary_value_cell.text = ""
+        # Add summary paragraph
+        p = summary_value_cell.add_paragraph(entry["Summary"])
+        p.paragraph_format.space_after = Pt(6)
+        # Add Key Aspects if present and non-empty
+        key_aspects_list = tokenize_key_aspects(entry.get("Key Aspects", ""))
+        print("RAW Key Aspects string:", repr(entry.get("Key Aspects", "")))
+        key_aspects_list = tokenize_key_aspects(entry.get("Key Aspects", ""))
+        print("Tokenized Key Aspects list:", key_aspects_list)
+        if key_aspects_list:
+            p = summary_value_cell.add_paragraph()
+            run = p.add_run("Key Aspects:")
+            run.bold = True
+            for point in key_aspects_list:
+                bullet = summary_value_cell.add_paragraph(point,
+                                                          style='List Bullet')
+                bullet.paragraph_format.left_indent = Pt(18)
         summary_value_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         for col in range(2, 6):
             summary_value_cell.merge(table.cell(1, col))
