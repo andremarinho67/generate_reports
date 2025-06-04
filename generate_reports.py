@@ -1,7 +1,7 @@
 from docx import Document as DocxDocument
 from docx.shared import Pt, Inches
 from docx.oxml import parse_xml
-from docx.oxml.ns import nsdecls
+from docx.oxml.ns import nsdecls, qn
 from docx.enum.table import WD_ALIGN_VERTICAL, WD_ROW_HEIGHT_RULE
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT, WD_BREAK
 from reportlab.lib.pagesizes import A4
@@ -17,7 +17,7 @@ import argparse
 
 # Custom One Consulting blue color
 one_consult_blue = colors.Color(87 / 255, 155 / 255, 156 / 255, 1)  # RGBA
-transparent_blue = colors.Color(87 / 255, 155 / 255, 156 / 255, 0.2)  # RGBA
+transparent_blue = colors.Color(87 / 255, 155 / 255, 156 / 255, 0.15)  # RGBA
 
 # Map country to flag image filenames (ensure these files exist)
 country_flags = {
@@ -238,6 +238,10 @@ def build_table_for_entry(entry):
         base_height * 3  # Availability row
     ]
 
+    # --- Modern semi-transparent border color ---
+    semi_transparent_border = colors.Color(87 / 255, 155 / 255, 156 / 255,
+                                           0.4)  # RGBA
+
     t = Table(data,
               colWidths=[
                   1 * inch, 2.5 * inch, 0.8 * inch, 1 * inch, 0.8 * inch,
@@ -245,8 +249,9 @@ def build_table_for_entry(entry):
               ],
               rowHeights=row_heights)
     style = TableStyle([
-        ('BOX', (0, 0), (-1, -1), 0, colors.white),
-        ('INNERGRID', (0, 0), (-1, -1), 0, colors.white),
+        # Modern semi-transparent borders
+        ('BOX', (0, 0), (-1, -1), 1, semi_transparent_border),
+        ('INNERGRID', (0, 0), (-1, -1), 1, semi_transparent_border),
         # Label backgrounds (solid)
         ('BACKGROUND', (0, 0), (0, 0), one_consult_blue),
         ('BACKGROUND', (2, 0), (2, 0), one_consult_blue),
@@ -330,13 +335,14 @@ def create_word(entries, output_docx):
             (table.cell(0, 5), None),  # Flag or country text filled later
         ]
 
-        # Fill text and set vertical align center for all cells in first row
-        for cell, text in cells:
+        # Set backgrounds for label/content fields in Row 1
+        for idx, (cell, text) in enumerate(cells):
+            if text in ["Title", "Date", "Country"]:
+                set_cell_background(cell, "579B9C")  # one_consult_blue
+            else:
+                set_cell_background(cell, "E2F3F3")  # transparent_blue
             if text is not None:
                 cell.text = text
-            set_cell_background(
-                cell,
-                "ADD8E6" if text in ["Title", "Date", "Country"] else None)
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
         # Make labels bold (in label cells)
@@ -367,21 +373,17 @@ def create_word(entries, output_docx):
         # Row 2 Summary
         summary_label_cell = table.cell(1, 0)
         summary_label_cell.text = "Summary"
-        set_cell_background(summary_label_cell, "ADD8E6")
+        set_cell_background(summary_label_cell, "579B9C")  # one_consult_blue
         summary_label_cell.paragraphs[0].runs[0].font.bold = True
         summary_label_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
         summary_value_cell = table.cell(1, 1)
-        # Clear any existing paragraphs
         summary_value_cell.text = ""
-        # Add summary paragraph
-        p = summary_value_cell.add_paragraph(entry["Summary"])
+        set_cell_background(summary_value_cell, "E2F3F3")  # transparent_blue
+        summary_text = entry["Summary"].lstrip('\n').lstrip()
+        p = summary_value_cell.add_paragraph(summary_text)
         p.paragraph_format.space_after = Pt(6)
-        # Add Key Aspects if present and non-empty
         key_aspects_list = tokenize_key_aspects(entry.get("Key Aspects", ""))
-        print("RAW Key Aspects string:", repr(entry.get("Key Aspects", "")))
-        key_aspects_list = tokenize_key_aspects(entry.get("Key Aspects", ""))
-        print("Tokenized Key Aspects list:", key_aspects_list)
         if key_aspects_list:
             p = summary_value_cell.add_paragraph()
             run = p.add_run("Key Aspects:")
@@ -392,37 +394,70 @@ def create_word(entries, output_docx):
                 bullet.paragraph_format.left_indent = Pt(18)
         summary_value_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         for col in range(2, 6):
-            summary_value_cell.merge(table.cell(1, col))
+            cell = table.cell(1, col)
+            set_cell_background(cell, "E2F3F3")  # transparent_blue
+            summary_value_cell.merge(cell)
 
         # Row 3 Link
         link_label_cell = table.cell(2, 0)
         link_label_cell.text = "Link"
-        set_cell_background(link_label_cell, "ADD8E6")
+        set_cell_background(link_label_cell, "579B9C")  # one_consult_blue
         link_label_cell.paragraphs[0].runs[0].font.bold = True
         link_label_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
         link_value_cell = table.cell(2, 1)
         link_value_cell.text = entry["Link"]
+        set_cell_background(link_value_cell, "E2F3F3")  # transparent_blue
         link_value_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         for col in range(2, 6):
-            link_value_cell.merge(table.cell(2, col))
+            cell = table.cell(2, col)
+            set_cell_background(cell, "E2F3F3")  # transparent_blue
+            link_value_cell.merge(cell)
 
         # Row 4 Availability
         avail_label_cell = table.cell(3, 0)
         avail_label_cell.text = "Availability"
-        set_cell_background(avail_label_cell, "ADD8E6")
+        set_cell_background(avail_label_cell, "579B9C")  # one_consult_blue
         avail_label_cell.paragraphs[0].runs[0].font.bold = True
         avail_label_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
         avail_value_cell = table.cell(3, 1)
         avail_value_cell.text = entry["Availability"]
+        set_cell_background(avail_value_cell, "E2F3F3")  # transparent_blue
         avail_value_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         for col in range(2, 6):
-            avail_value_cell.merge(table.cell(3, col))
+            cell = table.cell(3, col)
+            set_cell_background(cell, "E2F3F3")  # transparent_blue
+            avail_value_cell.merge(cell)
 
         # Set fixed height for the first row
         table.rows[0].height = Inches(0.6)
         table.rows[0].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
+
+        # --- Add modern light blue borders to all cells ---
+        # Word does not support transparency, so use a light blue color
+        border_color = "B3E0E2"  # Light blue hex (matches the blue, but lighter)
+        for row in table.rows:
+            for cell in row.cells:
+                tc = cell._tc
+                tcPr = tc.get_or_add_tcPr()
+                # Set all borders (top, left, bottom, right)
+                for border_name in ['top', 'left', 'bottom', 'right']:
+                    border_tag = f'w:{border_name}'
+                    border = tcPr.find(
+                        f'.//{border_tag}',
+                        namespaces={
+                            'w':
+                            'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+                        })
+                    if border is None:
+                        from docx.oxml import OxmlElement
+                        border = OxmlElement(border_tag)
+                        tcPr.append(border)
+                    border.set(qn('w:val'), 'single')
+                    border.set(qn('w:sz'), '6')  # Thin border
+                    border.set(qn('w:color'), border_color)
+                    border.set(qn('w:space'), '0')
 
         # Add page break after each table except last
         if i != len(entries):
