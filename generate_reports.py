@@ -323,7 +323,22 @@ def add_flag_to_cell(cell, flag_path):
     cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
 
+# --- Table structure configuration ---
+TABLE_COLUMNS = [
+    ("Title", 1),
+    ("TitleValue", 2.5),
+    ("Date", 0.8),
+    ("DateValue", 1),
+    ("Country", 0.8),
+    ("CountryValue", 1)
+]
+
+
 def create_word(entries, output_docx):
+    """
+    Generate a Word document with a table for each entry.
+    Each table contains Title, Date, Country, Summary, Link, and Availability.
+    """
     logging.basicConfig(level=logging.INFO)
     logging.info("[create_word] Creating Word document: %s", output_docx)
     doc = DocxDocument()
@@ -331,23 +346,22 @@ def create_word(entries, output_docx):
     for i, entry in enumerate(entries, 1):
         logging.info("[create_word] Processing entry #%d", i)
 
-        table = doc.add_table(rows=4, cols=6)
+        # --- Validate input data ---
+        required_fields = ["Title", "Date", "Country", "Summary", "Link", "Availability"]
+        for field in required_fields:
+            if field not in entry or not entry[field]:
+                logging.warning(f"Entry #{i} missing required field: {field}")
+
+        # --- Table creation using parameterized structure ---
+        table = doc.add_table(rows=4, cols=len(TABLE_COLUMNS))
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
         table.autofit = False
-        widths = [
-            Inches(1),
-            Inches(2.5),
-            Inches(0.8),
-            Inches(1),
-            Inches(0.8),
-            Inches(1)
-        ]
-        for idx, width in enumerate(widths):
+        for idx, (_, width) in enumerate(TABLE_COLUMNS):
             for cell in table.columns[idx].cells:
-                cell.width = width
+                cell.width = Inches(width)
 
         # Prepare Title split
-        title = entry["Title"]
+        title = entry.get("Title", "")
         if len(title) > 40:
             parts = title.split(' ')
             mid = len(parts) // 2
@@ -360,7 +374,7 @@ def create_word(entries, output_docx):
             (table.cell(0, 0), "Title"),
             (table.cell(0, 1), title_text),
             (table.cell(0, 2), "Date"),
-            (table.cell(0, 3), entry["Date"]),
+            (table.cell(0, 3), entry.get("Date", "")),
             (table.cell(0, 4), "Country"),
             (table.cell(0, 5), None),  # Flag or country text filled later
         ]
@@ -381,13 +395,13 @@ def create_word(entries, output_docx):
 
         # Add flag or country text centered in last cell
         country_cell_value = table.cell(0, 5)
-        flag_path = country_flags.get(entry["Country"])
+        flag_path = country_flags.get(entry.get("Country", ""))
         if flag_path and os.path.isfile(flag_path):
             add_flag_to_cell(country_cell_value, flag_path)
         else:
             if flag_path:
-                logging.warning(f"Flag image not found for '{entry['Country']}' at '{flag_path}'")
-            country_cell_value.text = entry["Country"]
+                logging.warning(f"Flag image not found for '{entry.get('Country', '')}' at '{flag_path}'")
+            country_cell_value.text = entry.get("Country", "")
             country_cell_value.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
         # Row 2 Summary
@@ -400,7 +414,7 @@ def create_word(entries, output_docx):
         summary_value_cell = table.cell(1, 1)
         clear_cell(summary_value_cell)
         set_cell_background(summary_value_cell, "E2F3F3")  # transparent_blue
-        summary_text = entry["Summary"].strip()
+        summary_text = entry.get("Summary", "").strip()
         p = summary_value_cell.add_paragraph(summary_text)
         p.paragraph_format.space_after = Pt(6)
         key_aspects_list = tokenize_key_aspects(entry.get("Key Aspects", ""))
@@ -426,7 +440,7 @@ def create_word(entries, output_docx):
         link_label_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
         link_value_cell = table.cell(2, 1)
-        link_value_cell.text = entry["Link"]
+        link_value_cell.text = entry.get("Link", "")
         set_cell_background(link_value_cell, "E2F3F3")  # transparent_blue
         link_value_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         for col in range(2, 6):
@@ -442,7 +456,7 @@ def create_word(entries, output_docx):
         avail_label_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
         avail_value_cell = table.cell(3, 1)
-        avail_value_cell.text = entry["Availability"]
+        avail_value_cell.text = entry.get("Availability", "")
         set_cell_background(avail_value_cell, "E2F3F3")  # transparent_blue
         avail_value_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         for col in range(2, 6):
@@ -455,13 +469,11 @@ def create_word(entries, output_docx):
         table.rows[0].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
 
         # --- Add modern light blue borders to all cells ---
-        # Word does not support transparency, so use a light blue color
         border_color = "B3E0E2"  # Light blue hex (matches the blue, but lighter)
         for row in table.rows:
             for cell in row.cells:
                 tc = cell._tc
                 tcPr = tc.get_or_add_tcPr()
-                # Set all borders (top, left, bottom, right)
                 for border_name in ['top', 'left', 'bottom', 'right']:
                     border_tag = f'w:{border_name}'
                     border = tcPr.find(
@@ -485,8 +497,12 @@ def create_word(entries, output_docx):
             run = p.add_run()
             run.add_break(WD_BREAK.PAGE)
 
-    doc.save(output_docx)
-    print("[create_word] Document saved successfully.")
+    # --- Error handling for file operations ---
+    try:
+        doc.save(output_docx)
+        print("[create_word] Document saved successfully.")
+    except Exception as e:
+        logging.error(f"Failed to save Word document '{output_docx}': {e}")
 
 
 def create_pdf(entries, output_pdf):
