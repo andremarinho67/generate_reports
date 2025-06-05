@@ -14,6 +14,8 @@ from reportlab.platypus import ListFlowable, ListItem, KeepTogether, Flowable
 import os
 import re
 import argparse
+import logging
+from docx.enum.table import WD_TABLE_ALIGNMENT
 
 # Custom One Consulting blue color
 one_consult_blue = colors.Color(87 / 255, 155 / 255, 156 / 255, 1)  # RGBA
@@ -295,15 +297,42 @@ def set_cell_background(cell, color_hex):
     tc_pr.append(shading_elm)
 
 
+def clear_cell(cell):
+    """Remove all paragraphs from a cell."""
+    while len(cell.paragraphs) > 0:
+        p = cell.paragraphs[0]
+        p._element.getparent().remove(p._element)
+
+
+def set_bold(cell):
+    """Set the first run in the first paragraph of a cell to bold."""
+    if cell.paragraphs and cell.paragraphs[0].runs:
+        cell.paragraphs[0].runs[0].font.bold = True
+
+
+def add_flag_to_cell(cell, flag_path):
+    """Add a flag image to a cell, centered both horizontally and vertically."""
+    clear_cell(cell)
+    cell.text = ""
+    paragraph = cell.paragraphs[0]
+    paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(0)
+    run = paragraph.add_run()
+    run.add_picture(flag_path, width=Inches(0.5))
+    cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+
 def create_word(entries, output_docx):
-    print("[create_word] Creating Word document:", output_docx)
+    logging.basicConfig(level=logging.INFO)
+    logging.info("[create_word] Creating Word document: %s", output_docx)
     doc = DocxDocument()
 
     for i, entry in enumerate(entries, 1):
-        print(f"[create_word] Processing entry #{i}")
+        logging.info("[create_word] Processing entry #%d", i)
 
         table = doc.add_table(rows=4, cols=6)
-        table.alignment = 1  # WD_TABLE_ALIGNMENT.CENTER
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
         table.autofit = False
         widths = [
             Inches(1),
@@ -348,28 +377,16 @@ def create_word(entries, output_docx):
 
         # Make labels bold (in label cells)
         for idx in [0, 2, 4]:
-            cell = table.cell(0, idx)
-            cell.paragraphs[0].runs[0].font.bold = True
+            set_bold(table.cell(0, idx))
 
         # Add flag or country text centered in last cell
         country_cell_value = table.cell(0, 5)
         flag_path = country_flags.get(entry["Country"])
         if flag_path and os.path.isfile(flag_path):
-            # Remove all paragraphs except the first
-            while len(country_cell_value.paragraphs) > 1:
-                p = country_cell_value.paragraphs[-1]
-                p._element.getparent().remove(p._element)
-            # Clear any existing text
-            country_cell_value.text = ""
-            paragraph = country_cell_value.paragraphs[0]
-            paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            paragraph.paragraph_format.space_before = Pt(0)
-            paragraph.paragraph_format.space_after = Pt(0)
-            run = paragraph.add_run()
-            run.add_picture(flag_path, width=Inches(0.5))
-            # Set vertical alignment after adding the image
-            country_cell_value.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            add_flag_to_cell(country_cell_value, flag_path)
         else:
+            if flag_path:
+                logging.warning(f"Flag image not found for '{entry['Country']}' at '{flag_path}'")
             country_cell_value.text = entry["Country"]
             country_cell_value.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
@@ -377,17 +394,13 @@ def create_word(entries, output_docx):
         summary_label_cell = table.cell(1, 0)
         summary_label_cell.text = "Summary"
         set_cell_background(summary_label_cell, "579B9C")  # one_consult_blue
-        summary_label_cell.paragraphs[0].runs[0].font.bold = True
+        set_bold(summary_label_cell)
         summary_label_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
         summary_value_cell = table.cell(1, 1)
-        # Remove all existing paragraphs in the cell
-        while len(summary_value_cell.paragraphs) > 0:
-            p = summary_value_cell.paragraphs[0]
-            p._element.getparent().remove(p._element)
+        clear_cell(summary_value_cell)
         set_cell_background(summary_value_cell, "E2F3F3")  # transparent_blue
-        summary_text = entry["Summary"].lstrip('\n').lstrip()
-        summary_text = summary_text.lstrip()  # Remove leading whitespace and newlines
+        summary_text = entry["Summary"].strip()
         p = summary_value_cell.add_paragraph(summary_text)
         p.paragraph_format.space_after = Pt(6)
         key_aspects_list = tokenize_key_aspects(entry.get("Key Aspects", ""))
