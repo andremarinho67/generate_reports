@@ -378,9 +378,13 @@ def create_word(entries, output_docx):
         summary_label_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
         summary_value_cell = table.cell(1, 1)
-        summary_value_cell.text = ""
+        # Remove all existing paragraphs in the cell
+        while len(summary_value_cell.paragraphs) > 0:
+            p = summary_value_cell.paragraphs[0]
+            p._element.getparent().remove(p._element)
         set_cell_background(summary_value_cell, "E2F3F3")  # transparent_blue
         summary_text = entry["Summary"].lstrip('\n').lstrip()
+        summary_text = summary_text.lstrip()  # Remove leading whitespace and newlines
         p = summary_value_cell.add_paragraph(summary_text)
         p.paragraph_format.space_after = Pt(6)
         key_aspects_list = tokenize_key_aspects(entry.get("Key Aspects", ""))
