@@ -363,6 +363,8 @@ def create_word(entries, output_docx):
             country_cell_value.text = ""
             paragraph = country_cell_value.paragraphs[0]
             paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            paragraph.paragraph_format.space_before = Pt(0)
+            paragraph.paragraph_format.space_after = Pt(0)
             run = paragraph.add_run()
             run.add_picture(flag_path, width=Inches(0.5))
             # Set vertical alignment after adding the image
