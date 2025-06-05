@@ -303,6 +303,7 @@ def create_word(entries, output_docx):
         print(f"[create_word] Processing entry #{i}")
 
         table = doc.add_table(rows=4, cols=6)
+        table.alignment = 1  # WD_TABLE_ALIGNMENT.CENTER
         table.autofit = False
         widths = [
             Inches(1),
