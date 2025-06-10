@@ -1,58 +1,93 @@
-Report Generation Script
-========================
+# Report Generation Script
 
-Description:
-------------
-This script parses a .docx file containing structured entries and generates a report with formatted tables for each entry. Each entry includes fields like Title, Date, Country (with flag), Summary, Link, and Availability.
+## Description
+This script parses a `.docx` file containing structured entries and generates a report with formatted tables for each entry. Each entry includes fields like **Title, Date, Country (with flag), Summary, Link, and Availability**.
 
-Requirements:
---------------
-- Python 3.6+
-- Packages listed in requirements.txt (install via pip)
+---
 
-Setup:
--------
-1. Create a virtual environment to isolate dependencies (recommended):
+## How to Use on Replit
 
-   On macOS/Linux:
+**Everything is already set up for you! Just follow these simple steps:**
+
+1. **Upload your own `input.docx` file:**
+   - On the left, find the file called `input.docx`.
+   - Right-click it and choose **Delete** (or just overwrite it).
+   - Drag and drop your own `.docx` file into the file list on the left, and make sure it is named `input.docx`.
+
+2. **Click the green "Run" button at the top of the Replit window.**
+   - By default, this will generate a **Word report** (`output.docx`).
+
+3. **Download your result:**
+   - When the script finishes, you will see a new file called `output.docx` in the file list.
+   - Right-click `output.docx` and choose **Download** to save it to your computer.
+
+---
+
+## Need a PDF instead of a Word file?
+
+- Click the **arrow next to the "Run" button** at the top.
+- In the command box, **remove the `-w` part** from the command so it just says:
+  ```
+  python generate_reports.py
+  ```
+- Click **Run** again. This will generate `output.pdf` instead of `output.docx`.
+- When the script finishes, download the final file (`output.pdf`) from the file list as above.
+
+---
+
+## Notes
+
+- You do **not** need to install anything or use the Shell on Replit.
+- If you get stuck, just ask for help!
+- Make sure your input file is named **exactly** `input.docx` and is in the main file list (not inside a folder).
+- The country flag images are already included for you.
+
+---
+
+## Running Locally on Unix/Linux/Mac
+
+1. **Install Python 3.6 or newer** (if not already installed).
+
+2. **Clone or download this repository** to your computer.
+
+3. **(Recommended) Create and activate a virtual environment:**
+   ```sh
    python3 -m venv venv
    source venv/bin/activate
+   ```
 
-   On Windows:
-   python -m venv venv
-   venv\Scripts\activate
-
-2. Install required packages:
-
+4. **Install the required packages:**
+   ```sh
    pip install -r requirements.txt
+   ```
 
-Note:
-------
-- The venv/ folder is not included in this repository and should not be committed to Git.
-- Virtual environments are machine-specific. Cloning this repo requires creating your own venv and installing dependencies using the requirements.txt file.
+5. **Place your input file as `input.docx` in the project folder.**
 
-Usage:
--------
-- Place your input .docx file as input.docx in the working directory or adjust the script accordingly.
-- Run the script to generate output.pdf with formatted entries by default.
-- To generate a Word (.docx) report instead, use the -w flag.
-
-Flags:
--------
-- Flag images for countries should be placed in the flags/ directory as PNG files.
-- The script automatically loads and displays them in the PDF or Word report.
-
-Command examples:
------------------
-Generate PDF (default):
-   python generate_reports.py
-
-Generate Word document:
+6. **To generate a Word report:**
+   ```sh
    python generate_reports.py -w
+   ```
 
-Troubleshooting:
-----------------
-- If you get a ModuleNotFoundError for missing packages, ensure your virtual environment is activated and dependencies installed.
-- Use pip install -r requirements.txt to install missing packages.
+7. **To generate a PDF report:**
+   ```sh
+   python generate_reports.py
+   ```
+
+8. **Your output will be saved as `output.docx` or `output.pdf` in the same folder.**
+
+---
+
+## Running Unit Tests
+
+1. Make sure you have installed all requirements (see above).
+
+2. From the project root, run:
+   ```sh
+   python -m unittest discover -s test
+   ```
+   or to run a specific test file:
+   ```sh
+   python -m unittest test/test_generate_reports.py
+   ```
 
 ---
