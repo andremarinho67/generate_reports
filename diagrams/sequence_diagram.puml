@@ -1,0 +1,49 @@
+@startuml
+actor User
+User -> main : Run script (with args)
+activate main
+
+main -> argparse : parse_args()
+main -> generate_reports : parse_docx(input_docx)
+activate generate_reports
+generate_reports -> DocxDocument : load(input_docx)
+DocxDocument --> generate_reports : paragraphs
+generate_reports -> generate_reports : parse entries (regex)
+generate_reports --> main : entries list
+deactivate generate_reports
+
+alt args.word (Word output)
+    main -> generate_reports : create_word(entries, output_docx)
+    activate generate_reports
+    loop for each entry
+        generate_reports -> logging : log processing
+        generate_reports -> generate_reports : validate fields
+        generate_reports -> DocxDocument : add_table()
+        loop Table Row Setup
+            generate_reports -> generate_reports : set_cell_background()
+            generate_reports -> generate_reports : set_bold()
+            generate_reports -> generate_reports : add_flag_to_cell()
+            generate_reports -> generate_reports : clear_cell()
+            generate_reports -> generate_reports : merge cells
+        end
+        generate_reports -> DocxDocument : add_paragraph() (page break if needed)
+    end
+    generate_reports -> DocxDocument : save(output_docx)
+    deactivate generate_reports
+else (PDF output)
+    main -> generate_reports : create_pdf(entries, output_pdf)
+    activate generate_reports
+    loop for each entry
+        generate_reports -> generate_reports : build_table_for_entry(entry)
+        generate_reports -> Table : create Table
+        generate_reports -> Paragraph : create Paragraphs
+        generate_reports -> ListFlowable : create bullet list
+        generate_reports -> SimpleDocTemplate : add Spacer, PageBreak if needed
+    end
+    generate_reports -> SimpleDocTemplate : build(elements)
+    deactivate generate_reports
+end
+
+main --> User : Output file (Word or PDF)
+deactivate main
+@enduml

@@ -1,0 +1,52 @@
+@startuml
+' External classes
+class DocxDocument
+class SimpleDocTemplate
+class Table
+class Paragraph
+class ParagraphStyle
+class Image
+class ListFlowable
+class ListItem
+
+' Your script's main module (as a static class for grouping)
+class generate_reports {
+    +parse_docx(file_path)
+    +tokenize_key_aspects(key_aspects_str)
+    +build_table_for_entry(entry)
+    +set_cell_background(cell, color_hex)
+    +clear_cell(cell)
+    +set_bold(cell)
+    +add_flag_to_cell(cell, flag_path)
+    +create_word(entries, output_docx)
+    +create_pdf(entries, output_pdf)
+    +main()
+    -country_flags : dict
+    -one_consult_blue : Color
+    -transparent_blue : Color
+    -styles : StyleSheet
+    -label_style : ParagraphStyle
+    -value_style : ParagraphStyle
+    -TABLE_COLUMNS : list
+}
+
+' Relationships
+generate_reports ..> DocxDocument : uses
+generate_reports ..> SimpleDocTemplate : uses
+generate_reports ..> Table : uses
+generate_reports ..> Paragraph : uses
+generate_reports ..> ParagraphStyle : uses
+generate_reports ..> Image : uses
+generate_reports ..> ListFlowable : uses
+generate_reports ..> ListItem : uses
+
+' Table structure
+Table "1" o-- "*" Paragraph : cells
+Table "1" o-- "*" Image : images
+Table "1" o-- "*" ListFlowable : lists
+
+' Styles
+generate_reports ..> ParagraphStyle : label_style
+generate_reports ..> ParagraphStyle : value_style
+
+@enduml

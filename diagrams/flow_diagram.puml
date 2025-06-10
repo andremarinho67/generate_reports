@@ -1,0 +1,41 @@
+@startuml
+start
+
+:Parse CLI arguments;
+:Check input file exists;
+:parse_docx(input_docx);
+
+if (Parsing successful?) then (yes)
+    :Extract entries from input;
+    if (Entries found?) then (yes)
+        if (Output format is Word?) then (yes)
+            :create_word(entries, output_docx);
+            :For each entry:
+            : Validate required fields;
+            : Create table in Word doc;
+            : Set cell backgrounds and bold;
+            : Add flag image or country text;
+            : Fill summary, key aspects, link, availability;
+            : Merge cells as needed;
+            : Add page break if not last entry;
+            :Repeat for all entries;
+            :Save Word document;
+        else (no)
+            :create_pdf(entries, output_pdf);
+            :For each entry:
+            : Build PDF table;
+            : Add summary, key aspects, link, availability;
+            : Add page break if not last entry;
+            :Repeat for all entries;
+            :Save PDF document;
+        endif
+        :Report success to user;
+    else (no)
+        :Show error: No entries found;
+    endif
+else (no)
+    :Show error: Failed to parse input;
+endif
+
+stop
+@enduml
