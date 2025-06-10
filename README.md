@@ -25,12 +25,16 @@ This script parses a `.docx` file containing structured entries and generates a 
 
 ## Need a PDF instead of a Word file?
 
-- Click the **arrow next to the "Run" button** at the top.
-- In the command box, **remove the `-w` part** from the command so it just says:
+- Open the `.replit` configuration file in the file list.
+- On line 2, you will see the default run command:
   ```
-  python generate_reports.py
+  run = "python generate_reports.py input.docx -w"
   ```
-- Click **Run** again. This will generate `output.pdf` instead of `output.docx`.
+- **Remove the `-w` part** so it looks like this:
+  ```
+  run = "python generate_reports.py input.docx"
+  ```
+- Click the green **Run** button again. This will generate `output.pdf` instead of `output.docx`.
 - When the script finishes, download the final file (`output.pdf`) from the file list as above.
 
 ---
